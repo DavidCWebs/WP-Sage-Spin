@@ -5,6 +5,8 @@ Quickly spin up a local development site with a renamed [Sage](https://github.co
 
 Uses [WP-CLI](https://github.com/wp-cli/wp-cli) and creates a unique MySQL/MariaDB database & database user.
 
+The cool kids would probably do this with a Yeoman Generator, but the BASH method works pretty well. You can spin up a new site with a development theme and GitHub repo in a couple of minutes - just enter your details when prompted.
+
 This BASH script:
 
 * Creates a new directory for WordPress
