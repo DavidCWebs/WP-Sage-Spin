@@ -20,26 +20,23 @@ sagerepo=git@github.com:roots/sage.git
 # ------------------------------------------------------------------------------
 # Set up directory
 # ------------------------------------------------------------------------------
-function install_wordpress() {
+install_wordpress() {
 
   echo -e "Please enter the full path to the new wp directory, e.g. /var/www/html/newproject:"
-  read  wp_dir
+  read WP_DIR
 
   # basename of the $DIR - used as the destination directory, under `/var/www/html`
-  DEST_DIR= $(basename $wp_dir)
+  DEST_DIR=$(basename $WP_DIR)
 
-  # ------------------------------------------------------------------------------
   # Create new directory and use WP-CLI to download WordPress
-
-
-  mkdir $wp_dir
-  sudo chown -R $USER $wp_dir
-  cd $wp_dir
+  mkdir $WP_DIR
+  sudo chown -R $USER $WP_DIR
+  cd $WP_DIR
   wp core download
-  echo "The new directory has been created at $wp_dir"
+  echo "The new directory has been created at $WP_DIR"
   echo "It is owned by \"$USER\""
   echo "WordPress core has been downloaded"
-  
+
 }
 
 # ------------------------------------------------------------------------------
@@ -48,7 +45,7 @@ function install_wordpress() {
 # Username is just the "salted" db name. For publicly accessible databases,
 # consider making this more secure.
 # ------------------------------------------------------------------------------
-function setup_database() {
+setup_database() {
 
   echo -e "This script will create a local database with a new user."
   echo -e "Enter the name of the new database:"
@@ -73,22 +70,32 @@ function setup_database() {
   echo -e "Enter the MySQL root password:"
   read  rootpassword
 
-  db="create database $db_name;GRANT ALL PRIVILEGES ON $db_name.* TO $newuser@localhost IDENTIFIED BY '$newpassword';FLUSH PRIVILEGES;"
+  db="CREATE DATABASE $db_name;GRANT ALL PRIVILEGES ON $db_name.* TO $newuser@localhost IDENTIFIED BY '$newpassword';FLUSH PRIVILEGES;"
   mysql -u root -p$rootpassword -e "$db"
 
   if [ $? != "0" ]; then  # NB "0" is the return from successful completion of the previous operation in BASH.
-  echo "[Error]: Database creation failed"
-  exit 1
-  else
+    echo "[Error]: Database creation failed"
+    exit 1
+  #else
+
+  fi
 
 }
 
 # ------------------------------------------------------------------------------
 # Set up wp-config.php using WP-CLI
 # ------------------------------------------------------------------------------
-function configure_wordpress() {
+configure_wordpress() {
 
-  wp core config --dbname=$db_name --dbuser=$newuser --dbpass=$newpassword --dbhost=localhost --dbprefix=$dbprefix
+  WP_PATH=http://localhost/$DEST_DIR
+
+  wp core config --dbname=$db_name --dbuser=$newuser --dbpass=$newpassword --dbhost=localhost --dbprefix=$dbprefix --extra-php <<PHP
+  define( 'WP_DEBUG', true );
+  define( 'WP_DEBUG_LOG', true );
+  define( 'WP_DEBUG_DISPLAY', true );
+  define( 'DISALLOW_FILE_EDIT', true );
+
+PHP
 
   # ------------------------------------------------------------------------------
   # Install WordPress. WP-CLI.
@@ -97,12 +104,38 @@ function configure_wordpress() {
   read strong_password
 
   echo -e "Enter a username. NOT 'ADMIN'!"
-  read username
+  read WP_USERNAME
 
-  wp core install --url=http://localhost/$DEST_DIR --title="Basic Test Site" --admin_user=$username --admin_password=$strong_password --admin_email=info@carawebs.com
+  wp core install --url=$WP_PATH --title="Basic Test Site" --admin_user=$WP_USERNAME --admin_password=$strong_password --admin_email=info@carawebs.com
+
+  # discourage search engines
+  wp option update blog_public 0
+
+  # delete sample page, and create homepage
+  wp post delete $(wp post list --post_type=page --posts_per_page=1 --post_status=publish --pagename="sample-page" --field=ID --format=ids)
+  wp post create --post_type=page --post_title=Home --post_status=publish --post_author=$(wp user get $WP_USERNAME --field=ID --format=ids)
+  wp post create --post_type=page --post_title=About --post_status=publish --post_author=$(wp user get $WP_USERNAME --field=ID --format=ids)
+
+  # delete readme and license
+  rm license.txt
+  rm readme.html
+
+  # set homepage as front page
+  wp option update show_on_front 'page'
+
+  # set homepage to be the new page
+  wp option update page_on_front $(wp post list --post_type=page --post_status=publish --posts_per_page=1 --pagename=home --field=ID --format=ids)
+
+  # set pretty urls
+  wp rewrite structure '/%postname%/' --hard
+  wp rewrite flush --hard
+
+  # delete akismet and hello dolly
+  wp plugin delete akismet
+  wp plugin delete hello
 
   echo "------------------------------------------"
-  echo " WordPress has been installed successfully: http://localhost/$DEST_DIR "
+  echo " WordPress has been installed successfully: $WP_PATH "
   echo "------------------------------------------"
   echo " DB Info: "
   echo ""
@@ -112,29 +145,8 @@ function configure_wordpress() {
   echo "------------------------------------------"
   echo " WordPress User details:"
   echo ""
-  echo " WP username: $username"
+  echo " WP username: $WP_USERNAME"
   echo " WP password: $strong_password"
-  fi
-
-}
-
-# Use node to amend JSON data in the manifest
-amend_manifest () {
-
-  jsonFile=$wp_dir/wp-content/themes/$themename/assets/manifest.json;
-
-  node > new-${jsonFile} <<EOF
-  //Read data
-  var data = require('./${jsonFile}');
-
-  //Manipulate data
-
-  data.config.devUrl = 'http://localhost/${wp_dir}';
-
-  //Output data
-  console.log(JSON.stringify(data, null, '  '));
-
-EOF
 
 }
 
@@ -143,19 +155,19 @@ EOF
 # ------------------------------------------------------------------------------
 setup_theme () {
 
-  cd $wp_dir/wp-content/themes
+  cd $WP_DIR/wp-content/themes
   git clone $sagerepo
   echo -e "Choose a name for the new theme:"
-  read themename
-  cp -r $wp_dir/wp-content/themes/sage $wp_dir/wp-content/themes/$themename
+  read THEMENAME
+  cp -r $WP_DIR/wp-content/themes/sage $WP_DIR/wp-content/themes/$THEMENAME
 
   # Change first line of style.css to avoid confusion
   themeline="Theme Name:         "
-  themeline+=$themename
+  themeline+=$THEMENAME
 
-  awk -v stylename="$themeline" '{ if (NR == 2) print stylename; else print $0}' $wp_dir/wp-content/themes/$themename/style.css > $wp_dir/wp-content/themes/$themename/stylemod.css
-  sudo cp $wp_dir/wp-content/themes/$themename/stylemod.css $wp_dir/wp-content/themes/$themename/style.css
-  rm -rf $wp_dir/wp-content/themes/$themename/stylemod.css
+  awk -v stylename="$themeline" '{ if (NR == 2) print stylename; else print $0}' $WP_DIR/wp-content/themes/$THEMENAME/style.css > $WP_DIR/wp-content/themes/$THEMENAME/stylemod.css
+  sudo cp $WP_DIR/wp-content/themes/$THEMENAME/stylemod.css $WP_DIR/wp-content/themes/$THEMENAME/style.css
+  rm -rf $WP_DIR/wp-content/themes/$THEMENAME/stylemod.css
 
   echo -e "-------------------------------------------------------------------------"
   echo -e "The first line of style.css has been amended"
@@ -164,20 +176,22 @@ setup_theme () {
   echo -e "-------------------------------------------------------------------------"
 
   # Backup original config file
-  cp $wp_dir/wp-config.php $wp_dir/wp-config.bak.php
+  cp $WP_DIR/wp-config.php $WP_DIR/wp-config.bak.php
 
-  newline="/* Define the Roots Environment */\ndefine('WP_ENV', 'development');\n"
-  awk -v insert="$newline" 'NR==3{print insert}1' $wp_dir/wp-config.php > $wp_dir/wp-config-temp.php
+  # newline="/* Define the Roots Environment */\ndefine('WP_ENV', 'development');\n"
+  # awk -v insert="$newline" 'NR==3{print insert}1' $WP_DIR/wp-config.php > $WP_DIR/wp-config-temp.php
 
-  cp $wp_dir/wp-config-temp.php $wp_dir/wp-config.php
+  cp $WP_DIR/wp-config-temp.php $WP_DIR/wp-config.php
 
   # amend JSON Manifest
+  cd $WP_DIR/wp-content/themes/$THEMENAME/assets
+  replace "http://example.dev" $WP_PATH -- manifest.json
 
 }
 
 install_soil () {
 
-  cd $wp_dir/wp-content/plugins
+  cd $WP_DIR/wp-content/plugins
   git clone https://github.com/roots/soil.git
   wp plugin activate soil
 
@@ -185,7 +199,7 @@ install_soil () {
 
 setup_node () {
 
-  cd $wp_dir/wp-content/themes/$themename
+  cd $WP_DIR/wp-content/themes/$THEMENAME
 
   # Note: npm runs without sudo if node has been installed on your system by the nvm method:
   # https://github.com/creationix/nvm (recommended!)
@@ -201,24 +215,26 @@ setup_node () {
 
 run_gulp () {
 
-  cd $wp_dir/wp-content/themes/$themename
+  cd $WP_DIR/wp-content/themes/$THEMENAME
+  # Run gulp first timne around to generate the assets
+  gulp
   gulp watch
 
 }
 
 activate_theme () {
 
-  cd $wp_dir/wp-content/themes/$themename
-  wp theme activate $themename
+  cd $WP_DIR/wp-content/themes/$THEMENAME
+  wp theme activate $THEMENAME
 
 }
 
 setup_repo () {
 
-  cd $wp_dir/wp-content/themes/$themename
+  cd $WP_DIR/wp-content/themes/$THEMENAME
 
   # remove existing git repo
-  sudo rm -rf $wp_dir/wp-content/themes/$themename/.git
+  sudo rm -rf $WP_DIR/wp-content/themes/$THEMENAME/.git
   git init
   repo_name=$1
   dir_name=`basename $(pwd)`
@@ -233,9 +249,9 @@ setup_repo () {
     repo_name=$dir_name
   fi
 
-  username=`git config github.user`
-  if [ "$username" = "" ]; then
-    echo "  Could not find username, run 'git config --global github.user <username>'"
+  GIT_USERNAME=`git config github.user`
+  if [ "$GIT_USERNAME" = "" ]; then
+    echo "  Could not find Git username, run 'git config --global github.user <username>'"
     invalid_credentials=1
   fi
 
@@ -250,11 +266,11 @@ setup_repo () {
   fi
 
   echo -n "  Creating Github repository '$repo_name' ..."
-  curl -u "$username:$token" https://api.github.com/user/repos -d '{"name":"'$repo_name'"}' > /dev/null 2>&1
+  curl -u "$GIT_USERNAME:$token" https://api.github.com/user/repos -d '{"name":"'$repo_name'"}' > /dev/null 2>&1
   echo " done."
 
   echo -n "  Pushing local code to remote ..."
-  git remote add origin git@github.com:$username/$repo_name.git > /dev/null 2>&1
+  git remote add origin git@github.com:$GIT_USERNAME/$repo_name.git > /dev/null 2>&1
   git push -u origin master > /dev/null 2>&1
   git add -A
   git commit -m "First Commit"
@@ -262,6 +278,13 @@ setup_repo () {
   echo " done."
 
 }
+
+# ------------------------------------------------------------------------------
+# Base functions
+# ------------------------------------------------------------------------------
+install_wordpress
+setup_database
+configure_wordpress
 
 # ------------------------------------------------------------------------------
 # Some options
@@ -273,7 +296,7 @@ case $yn in
   * ) echo "Please answer yes or no.";;
 esac
 
-read -p "Set up a new GitHub repo for $themename? [y/N]" yn
+read -p "Set up a new GitHub repo for $THEMENAME? [y/N]" yn
 case $yn in
   [Yy]* ) setup_repo;;
   [Nn]* ) ;;
@@ -287,14 +310,14 @@ case $yn in
   * ) echo "Please answer yes or no.";;
 esac
 
-read -p "Do you want to go to the $themename theme and install node dependencies? [y/N]" yn
+read -p "Do you want to go to the $THEMENAME theme and install node dependencies? [y/N]" yn
 case $yn in
   [Yy]* ) setup_node;;
   [Nn]* ) exit ;;
   * ) echo "Please answer yes or no.";;
 esac
 
-read -p "Do you want to activate the $themename theme? [y/N]" yn
+read -p "Do you want to activate the $THEMENAME theme? [y/N]" yn
 case $yn in
   [Yy]* ) activate_theme;;
   [Nn]* ) exit ;;
@@ -309,7 +332,7 @@ case $yn in
 esac
 
 sitelocation="Access your new site: http://localhost/"
-sitelocation+=$wp_dir
+sitelocation+=$WP_DIR
 echo -e "------------------------------------------------"
 echo -e "Finished!"
 echo $sitelocation
