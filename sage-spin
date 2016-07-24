@@ -19,99 +19,104 @@ sagerepo=git@github.com:roots/sage.git
 
 # ------------------------------------------------------------------------------
 # Set up directory
-
-echo -e "Please enter the full path to the new wp directory, e.g. /var/www/html/newproject:"
-read  wp_dir
-
-# basename of the $DIR - used as the destination directory, under `/var/www/html`
-DEST_DIR= $(basename $wp_dir)
-
 # ------------------------------------------------------------------------------
-# Create new directory and use WP-CLI to download WordPress
+function install_wordpress() {
+
+  echo -e "Please enter the full path to the new wp directory, e.g. /var/www/html/newproject:"
+  read  wp_dir
+
+  # basename of the $DIR - used as the destination directory, under `/var/www/html`
+  DEST_DIR= $(basename $wp_dir)
+
+  # ------------------------------------------------------------------------------
+  # Create new directory and use WP-CLI to download WordPress
 
 
-mkdir $wp_dir
-sudo chown -R $USER $wp_dir
-cd $wp_dir
-wp core download
-echo "The new directory has been created at $wp_dir"
-echo "It is owned by \"$USER\""
-echo "WordPress core has been downloaded"
+  mkdir $wp_dir
+  sudo chown -R $USER $wp_dir
+  cd $wp_dir
+  wp core download
+  echo "The new directory has been created at $wp_dir"
+  echo "It is owned by \"$USER\""
+  echo "WordPress core has been downloaded"
+  
+}
 
 # ------------------------------------------------------------------------------
 # Build new database
-# ------------------------------------------------------------------------------
-
-echo -e "This script will create a local database with a new user."
-echo -e "Enter the name of the new database:"
-read  db_name
-
-# Set up variables
+#
 # Username is just the "salted" db name. For publicly accessible databases,
 # consider making this more secure.
+# ------------------------------------------------------------------------------
+function setup_database() {
 
-newuser=$db_name
-newuser+=_user
+  echo -e "This script will create a local database with a new user."
+  echo -e "Enter the name of the new database:"
+  read  db_name
 
-echo -e "Enter a STRONG password for the new database:"
-read newpassword
+  newuser=$db_name
+  newuser+=_user
 
-# For security purposes, ask for a table prefix. Default to 'wp_'
-dbprefix=wp_
-echo -e "Please enter a database table prefix. Leave out the underscore. Defaults to 'wp_'."
-read dbprefix
-dbprefix+="_"
+  echo -e "Enter a STRONG password for the new database:"
+  read newpassword
 
-if [ "$dbprefix" = "" ]; then
-  $dbprefix=wp_
-fi
+  # For security purposes, ask for a table prefix. Default to 'wp_'
+  dbprefix=wp_
+  echo -e "Please enter a database table prefix. Leave out the underscore. Defaults to 'wp_'."
+  read dbprefix
+  dbprefix+="_"
 
-echo -e "Enter the MySQL root password:"
-read  rootpassword
+  if [ "$dbprefix" = "" ]; then
+    $dbprefix=wp_
+  fi
 
-db="create database $db_name;GRANT ALL PRIVILEGES ON $db_name.* TO $newuser@localhost IDENTIFIED BY '$newpassword';FLUSH PRIVILEGES;"
-mysql -u root -p$rootpassword -e "$db"
+  echo -e "Enter the MySQL root password:"
+  read  rootpassword
 
-if [ $? != "0" ]; then  # NB "0" is the return from successful completion of the previous operation in BASH.
-echo "[Error]: Database creation failed"
-exit 1
-else
+  db="create database $db_name;GRANT ALL PRIVILEGES ON $db_name.* TO $newuser@localhost IDENTIFIED BY '$newpassword';FLUSH PRIVILEGES;"
+  mysql -u root -p$rootpassword -e "$db"
+
+  if [ $? != "0" ]; then  # NB "0" is the return from successful completion of the previous operation in BASH.
+  echo "[Error]: Database creation failed"
+  exit 1
+  else
+
+}
 
 # ------------------------------------------------------------------------------
 # Set up wp-config.php using WP-CLI
 # ------------------------------------------------------------------------------
+function configure_wordpress() {
 
-wp core config --dbname=$db_name --dbuser=$newuser --dbpass=$newpassword --dbhost=localhost --dbprefix=$dbprefix
+  wp core config --dbname=$db_name --dbuser=$newuser --dbpass=$newpassword --dbhost=localhost --dbprefix=$dbprefix
 
-# ------------------------------------------------------------------------------
-# Install WordPress. WP-CLI.
-# ------------------------------------------------------------------------------
-echo -e "Enter a strong password - your database might be exported to a publicly accessible server, so please set a strong password."
-read strong_password
+  # ------------------------------------------------------------------------------
+  # Install WordPress. WP-CLI.
+  # ------------------------------------------------------------------------------
+  echo -e "Enter a strong password - your database might be exported to a publicly accessible server, so please set a strong password."
+  read strong_password
 
-echo -e "Enter a username. NOT 'ADMIN'!"
-read username
+  echo -e "Enter a username. NOT 'ADMIN'!"
+  read username
 
-wp core install --url=http://localhost/$DEST_DIR --title="Basic Test Site" --admin_user=$username --admin_password=$strong_password --admin_email=info@carawebs.com
+  wp core install --url=http://localhost/$DEST_DIR --title="Basic Test Site" --admin_user=$username --admin_password=$strong_password --admin_email=info@carawebs.com
 
-echo "------------------------------------------"
-echo " WordPress has been installed successfully: http://localhost/$DEST_DIR "
-echo "------------------------------------------"
-echo " DB Info: "
-echo ""
-echo " DB Name: $dbname"
-echo " DB User: $newuser"
-echo " DB Pass: $newpassword"
-echo "------------------------------------------"
-echo " WordPress User details:"
-echo ""
-echo " WP username: $username"
-echo " WP password: $strong_password"
-fi
+  echo "------------------------------------------"
+  echo " WordPress has been installed successfully: http://localhost/$DEST_DIR "
+  echo "------------------------------------------"
+  echo " DB Info: "
+  echo ""
+  echo " DB Name: $dbname"
+  echo " DB User: $newuser"
+  echo " DB Pass: $newpassword"
+  echo "------------------------------------------"
+  echo " WordPress User details:"
+  echo ""
+  echo " WP username: $username"
+  echo " WP password: $strong_password"
+  fi
 
-# ------------------------------------------------------------------------------
-# Set Up Sage Starter Theme
-# ------------------------------------------------------------------------------
+}
 
 # Use node to amend JSON data in the manifest
 amend_manifest () {
@@ -133,6 +138,9 @@ EOF
 
 }
 
+# ------------------------------------------------------------------------------
+# Set Up Sage Starter Theme
+# ------------------------------------------------------------------------------
 setup_theme () {
 
   cd $wp_dir/wp-content/themes
@@ -255,6 +263,9 @@ setup_repo () {
 
 }
 
+# ------------------------------------------------------------------------------
+# Some options
+# ------------------------------------------------------------------------------
 read -p "Do you want to set up the Sage Starter theme? [y/N]" yn
 case $yn in
   [Yy]* ) setup_theme;;
