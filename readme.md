@@ -22,6 +22,7 @@ This BASH script:
 The script was developed for Ubuntu 16.04 Desktop, though I suppose it will work for most development environments that use BASH. You can modify it for use in a server environment.
 
 ## Instructions
-* Ubuntu: add this script to `/usr/local/bin`
+* Ubuntu: add this script to `/usr/local/bin` or
+* Clone this repo and create a symlink in `/usr/local/bin`, e.g.: `sudo ln -s ~/WP-Sage-Spin/sage-spin /usr/local/bin/sage-spin`
 * Make it executable: `sudo chmod +x /usr/local/bin/sage-spin`
 * Invoke it by typing "sage-spin" in the terminal
