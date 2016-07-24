@@ -1,7 +1,11 @@
 WordPress/Sage Dev Site BASH Script
 ===================================
 
-Quickly spin up a local development site with a renamed [Sage](https://github.com/roots/sage) starter theme. Uses [WP-CLI](https://github.com/wp-cli/wp-cli). Creates a unique MySQL/MariaDB database & database user.
+Quickly spin up a local development site with a renamed [Sage](https://github.com/roots/sage) starter theme.
+
+Uses [WP-CLI](https://github.com/wp-cli/wp-cli) and creates a unique MySQL/MariaDB database & database user.
+
+This BASH script:
 
 * Creates a new directory for WordPress
 * Prompts for site username, site password, database user & database password
@@ -10,9 +14,10 @@ Quickly spin up a local development site with a renamed [Sage](https://github.co
 * Optionally downloads, renames and activates the Sage theme
 * Optionally downloads & activates the "Soil" plugin
 * Optionally installs node & bower dependencies by running npm install
+* Optionally sets up a new GitHub repository for your project (requires GitHub token)
 * Requires WP-CLI: http://wp-cli.org/
 
-This BASH script is intended for Ubuntu 16.04 Desktop. You can modify it for use in a server environment.
+The script was developed for Ubuntu 16.04 Desktop, though I suppose it will work for most development environments that use BASH. You can modify it for use in a server environment.
 
 ## Instructions
 * Ubuntu: add this script to `/usr/local/bin`
